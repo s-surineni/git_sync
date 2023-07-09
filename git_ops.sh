@@ -1,6 +1,7 @@
 #!/bin/bash
-repo_locs=(/home/sampath/projects/my_notes)
+repo_locs=(/home/sampath/projects/my_notes
+           /home/sampath/projects/git_sync)
 for repo in "${repo_locs[@]}"; do
     echo `pwd`
-    (cd "${repo}" && git pull && git commit -m "update" && git push)
+    (cd "${repo}" && git pull && git add * && git commit -m "update" && git push)
 done
