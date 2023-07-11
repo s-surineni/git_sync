@@ -1,0 +1,1 @@
+repo_locs = ('/home/ssurineni/salesforce/my_notes', )
