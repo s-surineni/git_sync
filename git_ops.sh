@@ -1,5 +1,5 @@
 #!/bin/bash
-date
+echo "time $(date)"
 repo_locs=(/Users/ssurineni/ironman/my_notes
             /Users/ssurineni/salesforce/my_notes
             /Users/ssurineni/ironman/projects/atice)
