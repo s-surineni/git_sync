@@ -2,13 +2,16 @@
 echo "time $(date)"
 repo_locs=(/Users/ssurineni/ironman/my_notes
             # /Users/ssurineni/salesforce/my_notes
-            # /Users/ssurineni/ironman/projects/atice
+            /Users/ssurineni/ironman/atice
           )
 for repo in "${repo_locs[@]}"; do
     echo "******************************************************************"
-    if [ "$repo" = "/Users/ssurineni/ironman/projects/atice" ]; then
-    cd "${repo}" && git add *.py
+    if [[ $repo == *"atice"* ]]; then
+        cd "${repo}" && git add *.py
     fi
+    # if [ "$repo" = "/Users/ssurineni/ironman/projects/atice" ]; then
+    # cd "${repo}" && git add *.py
+    # fi
     if [ "$repo" = "/Users/ssurineni/ironman/my_notes" ]; then
         cd "${repo}" && git add *.org
     fi
