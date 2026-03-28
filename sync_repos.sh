@@ -8,42 +8,35 @@ REPOS=(
 
 LOG_FILE="$HOME/bin/sync_repos.log"
 
-echo "Starting repo sync service (every 2 minutes)..."
-echo "Logging to $LOG_FILE"
-echo "Press Ctrl+C to stop."
-
-while true; do
-    for repo in "${REPOS[@]}"; do
-        if [ -d "$repo" ]; then
-            echo "[$(date +'%Y-%m-%d %H:%M:%S')] Syncing $repo..." >> "$LOG_FILE"
-            
-            # Change to repo directory
-            pushd "$repo" > /dev/null
-            
-            # Pull latest changes
-            git pull --rebase --quiet >> "$LOG_FILE" 2>&1
-            
-            # Check if there are local changes to push
-            if [[ -n $(git status --porcelain) ]]; then
-                echo "  Found local changes, committing and pushing..." >> "$LOG_FILE"
-                git add .
-                git commit -m "Auto-sync: $(date +'%Y-%m-%d %H:%M:%S')" --quiet
-                git push --quiet >> "$LOG_FILE" 2>&1
-            else
-                # Even if no local changes, try to push in case of unpushed commits
-                git push --quiet >> "$LOG_FILE" 2>&1
-            fi
-            
-            popd > /dev/null
+# Perform sync for each repo once
+for repo in "${REPOS[@]}"; do
+    if [ -d "$repo" ]; then
+        echo "[$(date +'%Y-%m-%d %H:%M:%S')] Syncing $repo..." >> "$LOG_FILE"
+        
+        # Change to repo directory
+        pushd "$repo" > /dev/null
+        
+        # Pull latest changes
+        git pull --rebase --quiet >> "$LOG_FILE" 2>&1
+        
+        # Check if there are local changes to push
+        if [[ -n $(git status --porcelain) ]]; then
+            echo "  Found local changes, committing and pushing..." >> "$LOG_FILE"
+            git add .
+            git commit -m "Auto-sync: $(date +'%Y-%m-%d %H:%M:%S')" --quiet
+            git push --quiet >> "$LOG_FILE" 2>&1
         else
-            echo "[$(date +'%Y-%m-%d %H:%M:%S')] Directory not found: $repo" >> "$LOG_FILE"
+            # Even if no local changes, try to push in case of unpushed commits
+            git push --quiet >> "$LOG_FILE" 2>&1
         fi
-    done
-    
-    # Keep only the last 1000 lines of the log to prevent it from growing too large
-    if [ -f "$LOG_FILE" ]; then
-        tail -n 1000 "$LOG_FILE" > "$LOG_FILE.tmp" && mv "$LOG_FILE.tmp" "$LOG_FILE"
+        
+        popd > /dev/null
+    else
+        echo "[$(date +'%Y-%m-%d %H:%M:%S')] Directory not found: $repo" >> "$LOG_FILE"
     fi
-
-    sleep 120
 done
+
+# Keep only the last 1000 lines of the log to prevent it from growing too large
+if [ -f "$LOG_FILE" ]; then
+    tail -n 1000 "$LOG_FILE" > "$LOG_FILE.tmp" && mv "$LOG_FILE.tmp" "$LOG_FILE"
+fi
