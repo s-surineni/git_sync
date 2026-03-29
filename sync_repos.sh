@@ -22,7 +22,7 @@ for repo in "${REPOS[@]}"; do
         # Check if there are local changes to push
         if [[ -n $(git status --porcelain) ]]; then
             echo "  Found local changes, committing and pushing..." >> "$LOG_FILE"
-            git add .
+            # git add .
             git commit -m "Auto-sync: $(date +'%Y-%m-%d %H:%M:%S')" --quiet
             git push origin master --quiet >> "$LOG_FILE" 2>&1
         else
