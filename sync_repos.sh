@@ -20,10 +20,11 @@ for repo in "${REPOS[@]}"; do
         # Pull latest changes from origin master
         git pull origin master --quiet >> "$LOG_FILE" 2>&1
 
-        # Check if there are local changes to push
-        if [[ -n $(git status --porcelain) ]]; then
-            echo "  Found local changes, committing and pushing..." >> "$LOG_FILE"
-            git add .
+        # Check if there are local changes to tracked files
+        if [[ -n $(git status --porcelain | grep -v '??') ]]; then
+            echo "  Found changes in tracked files, committing and pushing..." >> "$LOG_FILE"
+            # Only add tracked files that have been modified or deleted
+            git add -u
             git commit -m "Auto-sync from $USER@$(hostname)" --quiet
             git push origin master --quiet >> "$LOG_FILE" 2>&1
         else
