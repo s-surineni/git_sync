@@ -14,12 +14,13 @@ A collection of scripts to automatically synchronize git repositories every 2 mi
 To run this script every 2 minutes without keeping a terminal open:
 
 ### Windows (PowerShell)
-Run this once to create the background task:
+Run this once to create the background task (runs invisibly):
 ```powershell
-$action = New-ScheduledTaskAction -Execute "bash.exe" -Argument "-c '~/bin/sync_repos.sh'"
-$trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 2)
+$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-WindowStyle Hidden -Command `"Start-Process 'C:\Program Files\Git\bin\bash.exe' -ArgumentList '--noprofile', '--norc', '-c', 'C:/Users/sampa/bin/sync_repos.sh' -WindowStyle Hidden`""
+$trigger1 = New-ScheduledTaskTrigger -AtLogon
+$trigger2 = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 2)
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
-Register-ScheduledTask -TaskName "GitRepoSync" -Action $action -Trigger $trigger -Settings $settings
+Register-ScheduledTask -TaskName "GitRepoSync" -Action $action -Trigger @($trigger1, $trigger2) -Settings $settings -Force
 ```
 
 To manage the task:
