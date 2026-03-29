@@ -17,7 +17,7 @@ for repo in "${REPOS[@]}"; do
         pushd "$repo" > /dev/null
         
         # Pull latest changes from origin master
-        git pull origin master --rebase --quiet >> "$LOG_FILE" 2>&1
+        git pull origin master --quiet >> "$LOG_FILE" 2>&1
         
         # Check if there are local changes to push
         if [[ -n $(git status --porcelain) ]]; then
