@@ -14,9 +14,9 @@ A collection of scripts to automatically synchronize git repositories every 2 mi
 To run this script every 2 minutes without keeping a terminal open:
 
 ### Windows (PowerShell)
-Run this once to create the background task (runs invisibly):
+Run this once to create the background task (runs completely invisibly):
 ```powershell
-$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-WindowStyle Hidden -Command `"Start-Process 'C:\Program Files\Git\bin\bash.exe' -ArgumentList '--noprofile', '--norc', '-c', 'C:/Users/sampa/bin/sync_repos.sh' -WindowStyle Hidden`""
+$action = New-ScheduledTaskAction -Execute "wscript.exe" -Argument "`"C:\Users\sampa\bin\silent_run.vbs`""
 $trigger1 = New-ScheduledTaskTrigger -AtLogon
 $trigger2 = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 2)
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
