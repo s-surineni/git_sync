@@ -4,6 +4,7 @@
 REPOS=(
     "$HOME/dotfiles"
     "$HOME/myconfig/settings"
+    "c:/Users/sampa/projects/my_notes"
 )
 
 LOG_FILE="$HOME/bin/sync_repos.log"
@@ -18,7 +19,7 @@ for repo in "${REPOS[@]}"; do
         
         # Pull latest changes from origin master
         git pull origin master --quiet >> "$LOG_FILE" 2>&1
-        
+
         # Check if there are local changes to push
         if [[ -n $(git status --porcelain) ]]; then
             echo "  Found local changes, committing and pushing..." >> "$LOG_FILE"
