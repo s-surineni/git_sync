@@ -16,18 +16,18 @@ for repo in "${REPOS[@]}"; do
         # Change to repo directory
         pushd "$repo" > /dev/null
         
-        # Pull latest changes
-        git pull --rebase --quiet >> "$LOG_FILE" 2>&1
+        # Pull latest changes from origin master
+        git pull origin master --rebase --quiet >> "$LOG_FILE" 2>&1
         
         # Check if there are local changes to push
         if [[ -n $(git status --porcelain) ]]; then
             echo "  Found local changes, committing and pushing..." >> "$LOG_FILE"
             git add .
             git commit -m "Auto-sync: $(date +'%Y-%m-%d %H:%M:%S')" --quiet
-            git push --quiet >> "$LOG_FILE" 2>&1
+            git push origin master --quiet >> "$LOG_FILE" 2>&1
         else
             # Even if no local changes, try to push in case of unpushed commits
-            git push --quiet >> "$LOG_FILE" 2>&1
+            git push origin master --quiet >> "$LOG_FILE" 2>&1
         fi
         
         popd > /dev/null
