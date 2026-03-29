@@ -43,3 +43,23 @@ crontab -e
 
 ## Logs
 Logs are stored in `~/bin/sync_repos.log` and automatically kept to the last 1000 lines.
+
+## Adding New Repositories
+
+To add a new repository to the sync service:
+
+1.  **Update the script**: Add the full path to the `REPOS` array in `~/projects/git_sync/sync_repos.sh`.
+    ```bash
+    REPOS=(
+        "$HOME/dotfiles"
+        "c:/path/to/your/new_repo"
+    )
+    ```
+2.  **Apply changes**: On Windows, old bash processes might stay in the background. Run this in **PowerShell** to force the scheduler to use the updated script:
+    ```powershell
+    Stop-Process -Name bash -Force -ErrorAction SilentlyContinue
+    ```
+3.  **Verify**: Check the log to ensure the new repo is being processed:
+    ```bash
+    tail -f ~/bin/sync_repos.log
+    ```
