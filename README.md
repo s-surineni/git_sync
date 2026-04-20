@@ -4,6 +4,8 @@ A collection of scripts to automatically synchronize git repositories every 2 mi
 
 ## Features
 - Cross-platform support (Windows and Linux/Unix)
+- External configuration file (per-machine repo lists)
+- Auto-detects default branch (main or master)
 - Single-run execution (ideal for schedulers)
 - Automatic commit of local changes
 - Activity logging with auto-cleanup
@@ -45,22 +47,39 @@ crontab -e
 ## Logs
 Logs are stored in `~/bin/sync_repos.log` and automatically kept to the last 1000 lines.
 
+## Configuration
+
+Repos are configured in `~/.sync_repos.conf` (one path per line). Create it on each machine:
+
+```bash
+./sync_repos.sh --init
+```
+
+Then edit `~/.sync_repos.conf`:
+```bash
+# Sync Repos Configuration
+# Add one repository path per line (use # for comments)
+
+$HOME/dotfiles
+$HOME/myconfig/settings
+$HOME/projects/my_notes
+```
+
+## Usage
+
+```bash
+./sync_repos.sh --help           # Show help
+./sync_repos.sh --init           # Create sample config
+./sync_repos.sh                  # Run sync
+```
+
 ## Adding New Repositories
 
-To add a new repository to the sync service:
-
-1.  **Update the script**: Add the full path to the `REPOS` array in `~/projects/git_sync/sync_repos.sh`.
+1.  **Edit config**: Add the full path to `~/.sync_repos.conf`
     ```bash
-    REPOS=(
-        "$HOME/dotfiles"
-        "c:/path/to/your/new_repo"
-    )
+    $HOME/path/to/your/new_repo
     ```
-2.  **Apply changes**: On Windows, old bash processes might stay in the background. Run this in **PowerShell** to force the scheduler to use the updated script:
-    ```powershell
-    Stop-Process -Name bash -Force -ErrorAction SilentlyContinue
-    ```
-3.  **Verify**: Check the log to ensure the new repo is being processed:
+2.  **Verify**: Check the log to ensure the new repo is being processed:
     ```bash
     tail -f ~/bin/sync_repos.log
     ```
