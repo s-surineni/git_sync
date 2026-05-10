@@ -1,11 +1,52 @@
 #!/bin/bash
 
-# List of repositories to sync
-REPOS=(
-    "$HOME/dotfiles"
-    "$HOME/myconfig/settings"
-    "c:/Users/sampa/projects/my_notes"
-)
+# Show help if requested
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+    echo "Usage: $(basename "$0") [OPTIONS]"
+    echo ""
+    echo "Sync multiple git repositories (auto-commit, pull, push)."
+    echo ""
+    echo "Options:"
+    echo "  --init, --generate-config  Create sample ~/.sync_repos.conf"
+    echo "  --help, -h                 Show this help message"
+    echo ""
+    echo "Configuration: ~/.sync_repos.conf (one repo path per line)"
+    exit 0
+fi
+
+# Generate sample config if requested
+if [[ "$1" == "--init" || "$1" == "--generate-config" ]]; then
+    CONFIG_FILE="$HOME/.sync_repos.conf"
+    if [ -f "$CONFIG_FILE" ]; then
+        echo "Config file already exists: $CONFIG_FILE"
+        exit 0
+    fi
+    cat > "$CONFIG_FILE" << 'EOF'
+# Sync Repos Configuration
+# Add one repository path per line (use # for comments)
+
+$HOME/dotfiles
+$HOME/myconfig/settings
+# $HOME/projects/my_notes
+EOF
+    echo "Created sample config: $CONFIG_FILE"
+    echo "Edit it to add your repository paths."
+    exit 0
+fi
+
+# Read repos from external config file (one repo per line, # for comments)
+CONFIG_FILE="$HOME/.sync_repos.conf"
+REPOS=()
+
+if [ -f "$CONFIG_FILE" ]; then
+    while IFS= read -r line; do
+        [[ -n "$line" && ! "$line" =~ ^# ]] && REPOS+=("$line")
+    done < "$CONFIG_FILE"
+else
+    echo "Config file not found: $CONFIG_FILE" >&2
+    echo "Run with --init to create a sample config file." >&2
+    exit 1
+fi
 
 LOG_FILE="$HOME/bin/sync_repos.log"
 
@@ -26,11 +67,14 @@ for repo in "${REPOS[@]}"; do
             git commit -m "Auto-sync from $USER@$(hostname)" --quiet
         fi
 
-        # Pull latest changes from origin master
-        git pull origin master --quiet >> "$LOG_FILE" 2>&1
+        # Detect default branch (main or master)
+        DEFAULT_BRANCH=$(git rev-parse --abbrev-ref origin/HEAD 2>/dev/null | sed 's/^origin\///' || echo "main")
+        
+        # Pull latest changes from origin
+        git pull origin "$DEFAULT_BRANCH" --quiet >> "$LOG_FILE" 2>&1
 
         # Push any local commits
-        git push origin master --quiet >> "$LOG_FILE" 2>&1
+        git push origin "$DEFAULT_BRANCH" --quiet >> "$LOG_FILE" 2>&1
         
         popd > /dev/null
     else
