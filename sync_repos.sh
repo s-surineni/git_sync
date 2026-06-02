@@ -48,7 +48,7 @@ else
     exit 1
 fi
 
-LOG_FILE="$HOME/bin/sync_repos.log"
+LOG_FILE="$HOME/git_sync/sync_repos.log"
 
 # Perform sync for each repo once
 for repo in "${REPOS[@]}"; do
