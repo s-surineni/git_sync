@@ -11,6 +11,8 @@ if [[ "$1" == "--help" || "$1" == "-h" ]]; then
     echo "  --help, -h                 Show this help message"
     echo ""
     echo "Configuration: ~/.sync_repos.conf (one repo path per line)"
+    echo ""
+    echo "Set GROQ_API_KEY in your environment for AI-generated commit messages."
     exit 0
 fi
 
@@ -50,6 +52,34 @@ fi
 
 LOG_FILE="$HOME/git_sync/sync_repos.log"
 
+generate_commit_message() {
+    local diff="$1"
+    if [[ -z "$GROQ_API_KEY" || -z "$diff" ]]; then
+        echo "Auto-sync from $USER@$(hostname)"
+        return
+    fi
+    local msg
+    msg=$(curl -s -w "\n%{http_code}" https://api.groq.com/openai/v1/chat/completions \
+        -H "Authorization: Bearer $GROQ_API_KEY" \
+        -H "Content-Type: application/json" \
+        -d "$(jq -n --arg diff "$diff" '{
+            model: "llama3-8b-8192",
+            messages: [
+                {role: "system", content: "Generate a concise git commit message (max 72 chars, no quotes, no explanation). Describe what changed."},
+                {role: "user", content: "Diff:\n" + $diff}
+            ],
+            temperature: 0.3,
+            max_tokens: 50
+        }')" 2>/dev/null)
+    local status=$(echo "$msg" | tail -1)
+    msg=$(echo "$msg" | sed '$d' | jq -r '.choices[0].message.content' 2>/dev/null | tr -d '"' | head -1)
+    if [[ "$status" != "200" || -z "$msg" ]]; then
+        echo "Auto-sync from $USER@$(hostname)"
+    else
+        echo "$msg"
+    fi
+}
+
 # Perform sync for each repo once
 for repo in "${REPOS[@]}"; do
     echo "[$(date +'%Y-%m-%d %H:%M:%S')] Checking repo: $repo" >> "$LOG_FILE"
@@ -64,7 +94,10 @@ for repo in "${REPOS[@]}"; do
             echo "  Found changes in tracked files, committing before pull..." >> "$LOG_FILE"
             # Only add tracked files that have been modified or deleted
             git add -u
-            git commit -m "Auto-sync from $USER@$(hostname)" --quiet
+            local_diff=$(git diff --cached | head -200)
+            commit_msg=$(generate_commit_message "$local_diff")
+            echo "  Commit message: $commit_msg" >> "$LOG_FILE"
+            git commit -m "$commit_msg" --quiet
         fi
 
         # Detect default branch (main or master)
