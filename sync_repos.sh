@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# Load Groq API key from file (works in cron where env vars aren't available)
+if [[ -f "$HOME/.groq_api_key" ]]; then
+    export GROQ_API_KEY=$(cat "$HOME/.groq_api_key")
+fi
+
 # Show help if requested
 if [[ "$1" == "--help" || "$1" == "-h" ]]; then
     echo "Usage: $(basename "$0") [OPTIONS]"
@@ -12,7 +17,7 @@ if [[ "$1" == "--help" || "$1" == "-h" ]]; then
     echo ""
     echo "Configuration: ~/.sync_repos.conf (one repo path per line)"
     echo ""
-    echo "Set GROQ_API_KEY in your environment for AI-generated commit messages."
+    echo "AI commit messages: Add your Groq API key to ~/.groq_api_key"
     exit 0
 fi
 
