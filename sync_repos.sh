@@ -63,7 +63,7 @@ generate_commit_message() {
         -H "Authorization: Bearer $GROQ_API_KEY" \
         -H "Content-Type: application/json" \
         -d "$(jq -n --arg diff "$diff" '{
-            model: "llama3-8b-8192",
+            model: "llama-3.1-8b-instant",
             messages: [
                 {role: "system", content: "Generate a concise git commit message (max 72 chars, no quotes, no explanation). Describe what changed."},
                 {role: "user", content: "Diff:\n" + $diff}
