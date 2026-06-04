@@ -108,8 +108,8 @@ for repo in "${REPOS[@]}"; do
         # Detect default branch (main or master)
         DEFAULT_BRANCH=$(git rev-parse --abbrev-ref origin/HEAD 2>/dev/null | sed 's/^origin\///' || echo "main")
         
-        # Pull latest changes from origin
-        git pull origin "$DEFAULT_BRANCH" --quiet >> "$LOG_FILE" 2>&1
+        # Pull latest changes from origin (rebase to avoid merge commits)
+        git pull --rebase origin "$DEFAULT_BRANCH" --quiet >> "$LOG_FILE" 2>&1
 
         # Push any local commits
         git push origin "$DEFAULT_BRANCH" --quiet >> "$LOG_FILE" 2>&1
