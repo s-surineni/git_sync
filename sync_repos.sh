@@ -55,6 +55,20 @@ else
     exit 1
 fi
 
+# Auto-discover all git repos under /home/sampath/projects/multi/
+MULTI_DIR="/home/sampath/projects/multi"
+if [ -d "$MULTI_DIR" ]; then
+    while IFS= read -r -d '' dir; do
+        repo_dir="$(dirname "$dir")"
+        # Only add if not already in the list
+        already_included=false
+        for r in "${REPOS[@]}"; do
+            [[ "$r" == "$repo_dir" ]] && already_included=true && break
+        done
+        $already_included || REPOS+=("$repo_dir")
+    done < <(find "$MULTI_DIR" -maxdepth 2 -name ".git" -type d -print0 2>/dev/null)
+fi
+
 LOG_FILE="$HOME/git_sync/sync_repos.log"
 
 generate_commit_message() {
