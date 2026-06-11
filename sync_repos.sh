@@ -103,6 +103,24 @@ generate_commit_message() {
     fi
 }
 
+# Retry network operations on transient failure
+retry() {
+    local n=0 max=3 delay=5
+    until [[ $n -ge $max ]]; do
+        "$@" && return
+        n=$((n+1))
+        echo "  Retry $n/$max after ${delay}s..." >> "$LOG_FILE"
+        sleep $delay
+    done
+    return 1
+}
+
+# Check network availability before processing repos
+if ! host github.com &>/dev/null; then
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')] Network unavailable (github.com unreachable), skipping sync" >> "$LOG_FILE"
+    exit 1
+fi
+
 # Perform sync for each repo once
 for repo in "${REPOS[@]}"; do
     echo "[$(date +'%Y-%m-%d %H:%M:%S')] Checking repo: $repo" >> "$LOG_FILE"
