@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -l
 
 # Load Groq API key from file (works in cron where env vars aren't available)
 if [[ -f "$HOME/.groq_api_key" ]]; then
