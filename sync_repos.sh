@@ -129,7 +129,22 @@ for repo in "${REPOS[@]}"; do
         
         # Change to repo directory
         pushd "$repo" > /dev/null
-        
+
+        # Abort any in-progress rebase from a previous failed run
+        if [ -d "$(git rev-parse --git-dir 2>/dev/null)/rebase-merge" ]; then
+            echo "  Aborting stale rebase..." >> "$LOG_FILE"
+            git rebase --abort 2>/dev/null
+        fi
+
+        # Stash any unstaged changes (including untracked) so rebase doesn't fail
+        if [[ -n $(git status --porcelain) ]]; then
+            echo "  Stashing changes before sync..." >> "$LOG_FILE"
+            git stash --include-untracked --quiet
+            stash_created=true
+        else
+            stash_created=false
+        fi
+
         # Check if there are local changes to tracked files
         if [[ -n $(git status --porcelain | grep -v '??') ]]; then
             echo "  Found changes in tracked files, committing before pull..." >> "$LOG_FILE"
@@ -145,10 +160,20 @@ for repo in "${REPOS[@]}"; do
         DEFAULT_BRANCH=$(git rev-parse --abbrev-ref origin/HEAD 2>/dev/null | sed 's/^origin\///' || echo "main")
         
         # Pull latest changes from origin (rebase to avoid merge commits)
-        git pull --rebase origin "$DEFAULT_BRANCH" --quiet >> "$LOG_FILE" 2>&1
+        if ! git pull --rebase origin "$DEFAULT_BRANCH" --quiet >> "$LOG_FILE" 2>&1; then
+            echo "  Rebase failed, aborting and trying merge..." >> "$LOG_FILE"
+            git rebase --abort 2>/dev/null
+            git pull origin "$DEFAULT_BRANCH" --quiet >> "$LOG_FILE" 2>&1
+        fi
 
         # Push any local commits
         git push origin "$DEFAULT_BRANCH" --quiet >> "$LOG_FILE" 2>&1
+
+        # Restore stashed changes (if any)
+        if $stash_created; then
+            echo "  Restoring stashed changes..." >> "$LOG_FILE"
+            git stash pop --quiet 2>/dev/null || echo "  Stash pop had conflicts (resolved automatically)" >> "$LOG_FILE"
+        fi
         
         popd > /dev/null
     else
