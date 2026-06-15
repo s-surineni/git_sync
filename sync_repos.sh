@@ -136,15 +136,6 @@ for repo in "${REPOS[@]}"; do
             git rebase --abort 2>/dev/null
         fi
 
-        # Stash any unstaged changes (including untracked) so rebase doesn't fail
-        if [[ -n $(git status --porcelain) ]]; then
-            echo "  Stashing changes before sync..." >> "$LOG_FILE"
-            git stash --include-untracked --quiet
-            stash_created=true
-        else
-            stash_created=false
-        fi
-
         # Check if there are local changes to tracked files
         if [[ -n $(git status --porcelain | grep -v '??') ]]; then
             echo "  Found changes in tracked files, committing before pull..." >> "$LOG_FILE"
@@ -154,6 +145,15 @@ for repo in "${REPOS[@]}"; do
             commit_msg=$(generate_commit_message "$local_diff")
             echo "  Commit message: $commit_msg" >> "$LOG_FILE"
             git commit -m "$commit_msg" --quiet
+        fi
+
+        # Stash any remaining unstaged changes (including untracked) so rebase doesn't fail
+        if [[ -n $(git status --porcelain) ]]; then
+            echo "  Stashing changes before sync..." >> "$LOG_FILE"
+            git stash --include-untracked --quiet
+            stash_created=true
+        else
+            stash_created=false
         fi
 
         # Detect default branch (main or master)
