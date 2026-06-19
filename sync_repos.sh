@@ -147,15 +147,6 @@ for repo in "${REPOS[@]}"; do
             git commit -m "$commit_msg" --quiet
         fi
 
-        # Stash any remaining unstaged changes (including untracked) so rebase doesn't fail
-        if [[ -n $(git status --porcelain) ]]; then
-            echo "  Stashing changes before sync..." >> "$LOG_FILE"
-            git stash --include-untracked --quiet
-            stash_created=true
-        else
-            stash_created=false
-        fi
-
         # Detect default branch (main or master)
         DEFAULT_BRANCH=$(git rev-parse --abbrev-ref origin/HEAD 2>/dev/null | sed 's/^origin\///' || echo "main")
         
@@ -169,12 +160,6 @@ for repo in "${REPOS[@]}"; do
         # Push any local commits
         git push origin "$DEFAULT_BRANCH" --quiet >> "$LOG_FILE" 2>&1
 
-        # Restore stashed changes (if any)
-        if $stash_created; then
-            echo "  Restoring stashed changes..." >> "$LOG_FILE"
-            git stash pop --quiet 2>/dev/null || echo "  Stash pop had conflicts (resolved automatically)" >> "$LOG_FILE"
-        fi
-        
         popd > /dev/null
     else
         echo "[$(date +'%Y-%m-%d %H:%M:%S')] Directory not found: $repo" >> "$LOG_FILE"
