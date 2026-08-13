@@ -140,8 +140,16 @@ for repo in "${REPOS[@]}"; do
             local_diff=$(git diff | head -200)
             commit_msg=$(generate_commit_message "$local_diff")
             echo "  Commit message: $commit_msg" >> "$LOG_FILE"
-            # Use -a to stage and commit in one step (bypasses index issues)
-            git commit -a -m "$commit_msg" --quiet
+
+            # Try commit -a first (handles most cases)
+            if ! git commit -a -m "$commit_msg" --quiet >> "$LOG_FILE" 2>&1; then
+                echo "  Standard commit failed, forcing index update..." >> "$LOG_FILE"
+                # Fallback: manually update index for each modified file
+                git diff --name-only | while read file; do
+                    git update-index --add --cacheinfo 100644 $(git hash-object "$file") "$file" 2>/dev/null
+                done
+                git commit -m "$commit_msg" --quiet >> "$LOG_FILE" 2>&1
+            fi
         fi
 
         # Detect default branch (main or master)
