@@ -136,12 +136,12 @@ for repo in "${REPOS[@]}"; do
         # Check if there are local changes to tracked files
         if [[ -n $(git status --porcelain | grep -v '??') ]]; then
             echo "  Found changes in tracked files, committing before pull..." >> "$LOG_FILE"
-            # Only add tracked files that have been modified or deleted
-            git add -u
-            local_diff=$(git diff --cached | head -200)
+            # Get diff before committing (for commit message generation)
+            local_diff=$(git diff | head -200)
             commit_msg=$(generate_commit_message "$local_diff")
             echo "  Commit message: $commit_msg" >> "$LOG_FILE"
-            git commit -m "$commit_msg" --quiet
+            # Use -a to stage and commit in one step (bypasses index issues)
+            git commit -a -m "$commit_msg" --quiet
         fi
 
         # Detect default branch (main or master)
