@@ -31,6 +31,7 @@ if [[ "$1" == "--init" || "$1" == "--generate-config" ]]; then
     cat > "$CONFIG_FILE" << 'EOF'
 # Sync Repos Configuration
 # Add one repository path per line (use # for comments)
+# $HOME and ~ are expanded
 
 $HOME/dotfiles
 $HOME/myconfig/settings
@@ -41,13 +42,21 @@ EOF
     exit 0
 fi
 
+expand_path() {
+    local path="$1"
+    path="${path/#\~/$HOME}"
+    path="${path//\$HOME/$HOME}"
+    printf '%s' "$path"
+}
+
 # Read repos from external config file (one repo per line, # for comments)
 CONFIG_FILE="$HOME/.sync_repos.conf"
 REPOS=()
 
 if [ -f "$CONFIG_FILE" ]; then
-    while IFS= read -r line; do
-        [[ -n "$line" && ! "$line" =~ ^# ]] && REPOS+=("$line")
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+        REPOS+=("$(expand_path "$line")")
     done < "$CONFIG_FILE"
 else
     echo "Config file not found: $CONFIG_FILE" >&2
@@ -56,8 +65,9 @@ else
 fi
 
 # Auto-discover all git repos under MULTI_DIRS (space-separated paths)
-MULTI_DIRS="${MULTI_DIRS:-/home/sampath/projects/multi}"
+MULTI_DIRS="${MULTI_DIRS:-$HOME/ironman/multi}"
 for MULTI_DIR in $MULTI_DIRS; do
+    MULTI_DIR="$(expand_path "$MULTI_DIR")"
     if [ -d "$MULTI_DIR" ]; then
         while IFS= read -r -d '' dir; do
             repo_dir="$(dirname "$dir")"
@@ -70,7 +80,14 @@ for MULTI_DIR in $MULTI_DIRS; do
     fi
 done
 
-LOG_FILE="$HOME/git_sync/sync_repos.log"
+LOG_DIR="$HOME/git_sync"
+LOG_FILE="$LOG_DIR/sync_repos.log"
+LOCK_FILE="$LOG_DIR/sync_repos.lock"
+mkdir -p "$LOG_DIR"
+
+log() {
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*" >> "$LOG_FILE"
+}
 
 generate_commit_message() {
     local diff="$1"
@@ -100,78 +117,122 @@ generate_commit_message() {
     fi
 }
 
-# Retry network operations on transient failure
 retry() {
     local n=0 max=3 delay=5
     until [[ $n -ge $max ]]; do
         "$@" && return
         n=$((n+1))
-        echo "  Retry $n/$max after ${delay}s..." >> "$LOG_FILE"
-        sleep $delay
+        if [[ $n -lt $max ]]; then
+            echo "  Retry $n/$max after ${delay}s..." >> "$LOG_FILE"
+            sleep $delay
+        fi
     done
     return 1
 }
 
-# Check network availability before processing repos
-if ! host github.com &>/dev/null; then
-    echo "[$(date +'%Y-%m-%d %H:%M:%S')] Network unavailable (github.com unreachable), skipping sync" >> "$LOG_FILE"
+git_dir() {
+    git rev-parse --git-dir 2>/dev/null
+}
+
+in_rebase() {
+    local gd
+    gd="$(git_dir)" || return 1
+    [[ -d "$gd/rebase-merge" || -d "$gd/rebase-apply" ]]
+}
+
+# Skip only an in-progress rebase you started. Dirty merges are still forced through.
+skip_in_progress_rebase() {
+    if in_rebase; then
+        echo "  In-progress rebase detected, skipping this repo" >> "$LOG_FILE"
+        return 0
+    fi
+    return 1
+}
+
+if ! mkdir "$LOCK_FILE" 2>/dev/null; then
+    if [[ -f "$LOCK_FILE/pid" ]] && kill -0 "$(cat "$LOCK_FILE/pid")" 2>/dev/null; then
+        log "Another sync is already running (pid $(cat "$LOCK_FILE/pid")), skipping"
+        exit 0
+    fi
+    rm -rf "$LOCK_FILE"
+    mkdir "$LOCK_FILE" || exit 1
+fi
+echo $$ > "$LOCK_FILE/pid"
+trap 'rm -rf "$LOCK_FILE"' EXIT
+
+if ! git ls-remote --exit-code https://github.com/git/git.git HEAD &>/dev/null; then
+    log "Network unavailable (cannot reach GitHub), skipping sync"
     exit 1
 fi
 
-# Perform sync for each repo once
 for repo in "${REPOS[@]}"; do
-    echo "[$(date +'%Y-%m-%d %H:%M:%S')] Checking repo: $repo" >> "$LOG_FILE"
+    log "Checking repo: $repo"
     if [ -d "$repo" ]; then
-        echo "[$(date +'%Y-%m-%d %H:%M:%S')] Syncing $repo..." >> "$LOG_FILE"
-        
-        # Change to repo directory
-        pushd "$repo" > /dev/null
+        log "Syncing $repo..."
 
-        # Abort any in-progress rebase from a previous failed run
-        if [ -d "$(git rev-parse --git-dir 2>/dev/null)/rebase-merge" ]; then
-            echo "  Aborting stale rebase..." >> "$LOG_FILE"
-            git rebase --abort 2>/dev/null
+        pushd "$repo" > /dev/null || continue
+
+        if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+            echo "  Not a git repository, skipping" >> "$LOG_FILE"
+            popd > /dev/null
+            continue
         fi
 
-        # Check if there are local changes to tracked files
-        if [[ -n $(git status --porcelain | grep -v '??') ]]; then
+        if skip_in_progress_rebase; then
+            popd > /dev/null
+            continue
+        fi
+
+        current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+        DEFAULT_BRANCH=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
+        if [[ -z "$DEFAULT_BRANCH" ]]; then
+            DEFAULT_BRANCH=$(git rev-parse --abbrev-ref origin/HEAD 2>/dev/null | sed 's|^origin/||')
+        fi
+        DEFAULT_BRANCH=${DEFAULT_BRANCH:-main}
+
+        if [[ "$current_branch" == "HEAD" ]]; then
+            echo "  Detached HEAD, skipping" >> "$LOG_FILE"
+            popd > /dev/null
+            continue
+        fi
+
+        if [[ "$current_branch" != "$DEFAULT_BRANCH" ]]; then
+            echo "  On '$current_branch' (default is '$DEFAULT_BRANCH'), skipping" >> "$LOG_FILE"
+            popd > /dev/null
+            continue
+        fi
+
+        # Tracked changes only: staged, unstaged, and deletions. Never untracked (??).
+        if [[ -n $(git status --porcelain --untracked-files=no) ]]; then
             echo "  Found changes in tracked files, committing before pull..." >> "$LOG_FILE"
-            # Get diff before committing (for commit message generation)
-            local_diff=$(git diff | head -200)
+            local_diff=$( { git diff --cached; git diff; } | head -400 )
             commit_msg=$(generate_commit_message "$local_diff")
             echo "  Commit message: $commit_msg" >> "$LOG_FILE"
 
-            # Try commit -a first (handles most cases)
-            if ! git commit -a -m "$commit_msg" --quiet >> "$LOG_FILE" 2>&1; then
-                echo "  Standard commit failed, forcing index update..." >> "$LOG_FILE"
-                # Fallback: manually update index for each modified file
-                git diff --name-only | while read file; do
-                    git update-index --add --cacheinfo 100644 $(git hash-object "$file") "$file" 2>/dev/null
-                done
-                git commit -m "$commit_msg" --quiet >> "$LOG_FILE" 2>&1
+            git add -u
+            if ! git commit -m "$commit_msg" --quiet >> "$LOG_FILE" 2>&1; then
+                echo "  Commit failed or nothing to commit" >> "$LOG_FILE"
             fi
         fi
 
-        # Detect default branch (main or master)
-        DEFAULT_BRANCH=$(git rev-parse --abbrev-ref origin/HEAD 2>/dev/null | sed 's/^origin\///' || echo "main")
-        
-        # Pull latest changes from origin (rebase to avoid merge commits)
-        if ! git pull --rebase origin "$DEFAULT_BRANCH" --quiet >> "$LOG_FILE" 2>&1; then
+        if ! retry git pull --rebase origin "$DEFAULT_BRANCH" --quiet >> "$LOG_FILE" 2>&1; then
             echo "  Rebase failed, aborting and trying merge..." >> "$LOG_FILE"
             git rebase --abort 2>/dev/null
-            git pull origin "$DEFAULT_BRANCH" --quiet >> "$LOG_FILE" 2>&1
+            if ! retry git pull origin "$DEFAULT_BRANCH" --quiet >> "$LOG_FILE" 2>&1; then
+                echo "  Pull/merge failed" >> "$LOG_FILE"
+            fi
         fi
 
-        # Push any local commits
-        git push origin "$DEFAULT_BRANCH" --quiet >> "$LOG_FILE" 2>&1
+        if ! retry git push origin "$DEFAULT_BRANCH" --quiet >> "$LOG_FILE" 2>&1; then
+            echo "  Push failed" >> "$LOG_FILE"
+        fi
 
         popd > /dev/null
     else
-        echo "[$(date +'%Y-%m-%d %H:%M:%S')] Directory not found: $repo" >> "$LOG_FILE"
+        log "Directory not found: $repo"
     fi
 done
 
-# Keep only the last 1000 lines of the log to prevent it from growing too large
 if [ -f "$LOG_FILE" ]; then
     tail -n 1000 "$LOG_FILE" > "$LOG_FILE.tmp" && mv "$LOG_FILE.tmp" "$LOG_FILE"
 fi
