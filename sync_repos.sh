@@ -140,7 +140,7 @@ in_rebase() {
     [[ -d "$gd/rebase-merge" || -d "$gd/rebase-apply" ]]
 }
 
-# Skip only an in-progress rebase you started. Dirty merges are still forced through.
+# Skip any in-progress rebase, including one left by a failed sync.
 skip_in_progress_rebase() {
     if in_rebase; then
         echo "  In-progress rebase detected, skipping this repo" >> "$LOG_FILE"
@@ -215,12 +215,10 @@ for repo in "${REPOS[@]}"; do
             fi
         fi
 
-        if ! retry git pull --rebase origin "$DEFAULT_BRANCH" --quiet >> "$LOG_FILE" 2>&1; then
-            echo "  Rebase failed, aborting and trying merge..." >> "$LOG_FILE"
-            git rebase --abort 2>/dev/null
-            if ! retry git pull origin "$DEFAULT_BRANCH" --quiet >> "$LOG_FILE" 2>&1; then
-                echo "  Pull/merge failed" >> "$LOG_FILE"
-            fi
+        if ! git pull --rebase origin "$DEFAULT_BRANCH" --quiet >> "$LOG_FILE" 2>&1; then
+            echo "  Pull/rebase failed; leaving repository untouched for manual recovery" >> "$LOG_FILE"
+            popd > /dev/null
+            continue
         fi
 
         if ! retry git push origin "$DEFAULT_BRANCH" --quiet >> "$LOG_FILE" 2>&1; then

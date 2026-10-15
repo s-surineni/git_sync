@@ -10,7 +10,7 @@ A script to automatically synchronize git repositories on a schedule (every 2 mi
 - Single-run execution (ideal for schedulers)
 - Automatic commit of tracked changes (untracked files are never added)
 - Optional AI-generated commit messages (Groq)
-- Lock file prevents overlapping runs; network check and retries on pull/push
+- Lock file prevents overlapping runs; network check and retries on push
 - Activity logging with auto-cleanup
 - No persistent background process required
 
@@ -19,8 +19,10 @@ A script to automatically synchronize git repositories on a schedule (every 2 mi
 For each repo, `sync_repos.sh`:
 1. Skips the repo if it is not a git repo, has a rebase in progress, is on a detached HEAD, or is not on its default branch.
 2. Commits tracked changes (`git add -u`), using an AI message if `~/.groq_api_key` exists, otherwise `Auto-sync from user@host`.
-3. Runs `git pull --rebase` (falls back to a merge pull if the rebase fails).
-4. Runs `git push` to the default branch.
+3. Runs `git pull --rebase` once. On failure, leaves the repository state as-is for manual recovery and skips the push. It does not retry, abort the rebase, or attempt a merge fallback.
+4. Runs `git push` to the default branch only if the pull succeeds.
+
+An unfinished rebase is skipped on later runs. Before manually aborting it, preserve any edits made since the rebase started.
 
 The whole run is skipped if GitHub is unreachable or another sync is already running.
 
